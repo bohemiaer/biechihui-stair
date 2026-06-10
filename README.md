@@ -13,6 +13,13 @@
 - 模糊记忆搜索和选卡问答。
 - AI 热点文章推荐。
 
+## 文档
+
+- [产品 PRD](docs/product/prd.md)
+- [视觉设计规范](docs/product/design.md)
+- [技术架构](docs/architecture/technical-architecture.md)
+- [技术栈规划](docs/tech-stack.md)
+
 ## 技术路线
 
 网页端采用 React、TypeScript 和 Vite。桌面端后续优先考虑 Tauri 套壳，同一套 Web UI 复用到桌面应用中。
