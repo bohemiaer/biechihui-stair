@@ -1,181 +1,181 @@
-# Product Intro Landing Page Design
+# 产品介绍落地页设计方案
 
-Date: 2026-06-11
+日期：2026-06-11
 
-## Purpose
+## 目标
 
-Create a public-facing product introduction page for 别吃灰 Web. The page explains the product before users enter the app workspace.
+为别吃灰 Web 创建一个对外产品介绍页。用户进入应用工作区之前，先通过这个页面理解产品是什么、解决什么问题，以及如何开始使用。
 
-The landing page should feel like a calm product website for a personal knowledge base, not a loud SaaS marketing page. It should borrow the clean white, light gray, thin-border feeling from the provided reference while staying consistent with the existing app visual language in `docs/product/design.md`.
+这个落地页应该像一个安静、可信赖的个人知识库产品官网，而不是高噪音的 SaaS 营销页。视觉上参考用户提供截图里的白底、浅灰、细边框和高留白气质，同时保持与 `docs/product/design.md` 中既有应用设计规范一致。
 
-## Route Structure
+## 路由结构
 
-- `/` is the product introduction landing page.
-- `/app` is the app workspace Home dashboard.
-- The existing app pages move under the app workspace route:
-  - `/app` for Home.
-  - `/app/knowledge` for Knowledge Base.
-  - `/app/knowledge/trash` for Trash.
-  - `/app/calendar` for Calendar.
-  - `/app/search` for Search.
-  - `/app/recommendations` for AI Hot Recommendations.
-  - `/app/settings` for Settings.
-- Legacy app aliases may redirect to the new app routes if needed for compatibility.
+- `/` 是产品介绍落地页。
+- `/app` 是应用工作区的 Home 数据看板。
+- 现有应用页面移动到 `/app` 工作区路由下：
+  - `/app`：Home。
+  - `/app/knowledge`：知识库。
+  - `/app/knowledge/trash`：回收站。
+  - `/app/calendar`：日历。
+  - `/app/search`：搜索。
+  - `/app/recommendations`：AI 热点推荐。
+  - `/app/settings`：设置。
+- 如实现阶段需要兼容旧地址，可以把旧应用路由重定向到新的 `/app/*` 路由。
 
-The landing page has a primary CTA labeled `立即使用`. It navigates to `/app`.
+落地页主行动按钮文案为 `立即使用`，点击后进入 `/app`。
 
-## Positioning
+## 产品定位
 
-The hero combines two approved directions:
+首屏采用已确认的 A+B 混合方向：
 
-- Memorable product promise: `别让收藏继续吃灰`
-- Clear product explanation: `从一个链接开始，建立你的本地个人知识库`
+- 有记忆点的产品承诺：`别让收藏继续吃灰`
+- 清晰的产品解释：`从一个链接开始，建立你的本地个人知识库`
 
-The page should communicate that 别吃灰 turns saved links into an organized, searchable, reviewable local knowledge base.
+页面需要传达：别吃灰可以把用户收藏的网页链接整理成有摘要、有标签、可搜索、可回看的本地个人知识库。
 
-## Page Structure
+## 页面结构
 
-### 1. Hero
+### 1. 首屏 Hero
 
-Content:
+内容：
 
-- Navigation bar with product name, section anchors, and `立即使用`.
-- Main headline: `别让收藏继续吃灰`
-- Supporting copy: `从一个链接开始，建立你的本地个人知识库。导入网页，自动生成摘要、标签和知识卡片，再用搜索、问答和日报把内容重新找回来。`
-- Primary CTA: `立即使用`
-- Secondary CTA: `看看如何工作`
-- Product interface preview based on the app workspace, not a decorative illustration.
+- 顶部导航：产品名、页面区块锚点、`立即使用`。
+- 主标题：`别让收藏继续吃灰`
+- 副文案：`从一个链接开始，建立你的本地个人知识库。导入网页，自动生成摘要、标签和知识卡片，再用搜索、问答和日报把内容重新找回来。`
+- 主按钮：`立即使用`
+- 次按钮：`看看如何工作`
+- 产品界面预览：基于现有应用工作区做界面仿真，不使用纯装饰插画。
 
-Visual direction:
+视觉方向：
 
-- White or near-white background.
-- Thin border around the interface preview.
-- Soft shadow only if needed.
-- No gradient hero background, decorative orbs, glassmorphism, or oversized marketing illustration.
+- 背景使用白色或近白色。
+- 产品界面预览使用细边框。
+- 仅在必要时使用非常轻的阴影。
+- 不使用渐变 hero 背景、装饰光球、玻璃拟态或大型营销插画。
 
-### 2. Core Workflow
+### 2. 核心工作流
 
-Use the approved workflow-first structure:
+采用已确认的工作流优先结构：
 
 1. `导入网页链接`
-   - User adds one URL and chooses a folder.
-   - Emphasize focused single-link import.
+   - 用户添加一个 URL，并选择目标文件夹。
+   - 强调第一版聚焦单链接导入。
 2. `自动整理成知识卡片`
-   - The app creates summary, tags, source metadata, folder placement, and readable card content.
+   - 系统生成摘要、标签、来源信息、文件夹归属和可阅读的卡片内容。
 3. `搜索、问答、重新找回`
-   - User searches by fuzzy memory and asks questions based on selected cards.
+   - 用户可以用模糊记忆搜索资料，并基于选中的卡片提问。
 
-Each step should use a compact visual panel or product UI mock, not abstract illustration.
+每一步都应使用紧凑的产品界面面板或 UI 仿真图，不使用抽象插画。
 
-### 3. Daily Knowledge Report
+### 3. 每日知识日报
 
-Daily report is an independent feature section, not a small item inside a feature grid.
+每日知识日报是独立功能区块，不放进小功能网格里。
 
-Message:
+核心表达：
 
-- It helps users review what they imported on a specific day.
-- It reorganizes daily inputs into a readable summary with themes, keywords, and worth-revisiting cards.
-- It is generated from Calendar and does not need to be saved as a knowledge card in the first version.
+- 帮用户回顾某一天导入过什么内容。
+- 把当天输入重新整理成可阅读的总结，包括主题、关键词和值得回看的卡片。
+- 日报从日历页生成；第一版不要求把日报保存为知识库卡片。
 
-Tone:
+语气边界：
 
-- Avoid promising polished publishing reports.
-- Present it as a calm review tool for personal knowledge work.
+- 不承诺生成精致的发布型报告。
+- 把它表达为个人知识工作的安静回看工具。
 
-### 4. AI Hot Recommendations
+### 4. AI 热点推荐
 
-AI Hot Recommendations is an independent feature section.
+AI 热点推荐是独立功能区块。
 
-Message:
+核心表达：
 
-- It helps users discover worthwhile articles.
-- Recommended articles can be previewed and imported one at a time.
-- It feeds useful new input into the same knowledge base workflow.
+- 帮用户发现值得阅读的新文章。
+- 推荐文章可以先预览，再单篇导入。
+- 热点推荐服务于同一条知识库工作流：发现内容后进入导入、整理、回看。
 
-Tone:
+语气边界：
 
-- Avoid making it feel like an addictive feed.
-- Present it as a curated discovery source that connects back to import and organization.
+- 不把它做成让人沉迷的信息流。
+- 把它表达为一个克制的发现入口，并且始终连接回导入和整理流程。
 
-### 5. Supporting Capabilities
+### 5. 辅助能力
 
-Use a restrained feature grid for supporting capabilities:
+使用克制的功能网格展示辅助能力：
 
-- Folders and tags.
-- Knowledge activity heatmap.
-- Recent import status.
-- Trash and recovery.
-- Local-first personal workspace positioning.
+- 文件夹和标签。
+- 知识活动热力图。
+- 最近导入状态。
+- 回收站和恢复。
+- 本地优先的个人工作区定位。
 
-These should support the main story rather than compete with the three major product ideas: import workflow, daily report, and hot recommendations.
+这些能力用于支撑主叙事，不应抢过三大重点：导入工作流、每日知识日报、AI 热点推荐。
 
-### 6. Final CTA
+### 6. 底部 CTA
 
-Close with a dark, calm CTA band or full-width section:
+页面末尾使用深色、安静的 CTA 区块或全宽区段：
 
-- Headline: `开始整理你的第一篇文章`
-- Copy: `从一个链接开始，让收藏变成可以回看的知识库。`
-- Primary CTA: `立即使用`
+- 标题：`开始整理你的第一篇文章`
+- 文案：`从一个链接开始，让收藏变成可以回看的知识库。`
+- 主按钮：`立即使用`
 
-Keep the section restrained. It can use a dark neutral background, but should avoid gradients and decorative effects.
+这个区块应保持克制。可以使用深色中性背景，但不要使用渐变或装饰效果。
 
-## Visual Requirements
+## 视觉要求
 
-- Follow `docs/product/design.md`.
-- Use neutral whites, light grays, near-black text, and subtle borders.
-- Cards should have `8px` to `12px` radius and very light or no shadow.
-- Use lucide icons where icons are useful.
-- The page should include product-like visual assets or UI mockups. Do not rely only on text.
-- Avoid one-note purple/blue gradients, decorative blobs, bokeh, glassmorphism, or large abstract SVG art.
-- Use responsive constraints so text and buttons do not overflow on mobile.
-- Desktop layout may be spacious, but the next section should be hinted below the first viewport where practical.
+- 遵循 `docs/product/design.md`。
+- 使用中性色：白色、浅灰、近黑文字和细边框。
+- 卡片圆角控制在 `8px` 到 `12px`，使用极轻阴影或不使用阴影。
+- 需要图标时优先使用 lucide 图标。
+- 页面必须包含产品感视觉素材或 UI 仿真图，不能只堆文字。
+- 避免单一紫色或蓝紫渐变主题、装饰光球、虚化光斑、玻璃拟态和大型抽象 SVG。
+- 使用稳定的响应式尺寸约束，避免移动端文字和按钮溢出。
+- 桌面端可以留白充足，但首屏在可行时应让下一段内容露出一点，提示页面可继续向下浏览。
 
-## Components and Architecture
+## 组件和架构
 
-Recommended file structure for implementation:
+实现阶段推荐文件结构：
 
-- Create `src/pages/Landing.tsx` for the public product introduction page.
-- Keep app workspace pages inside the existing `AppLayout`.
-- Add or adjust route constants in `src/app/routes.ts`.
-- Update `src/App.tsx` so the landing page is outside `AppLayout`, while `/app/*` routes use `AppLayout`.
-- Reuse existing `Button` styles where practical, but the landing page may use page-local layout components for hero, workflow, daily report, recommendations, supporting capabilities, and CTA sections.
+- 新建 `src/pages/Landing.tsx`，作为公开产品介绍页。
+- 现有应用工作区页面继续放在 `AppLayout` 内。
+- 在 `src/app/routes.ts` 中新增或调整路由常量。
+- 更新 `src/App.tsx`：让落地页位于 `AppLayout` 外，`/app/*` 路由使用 `AppLayout`。
+- 尽量复用现有 `Button` 样式；落地页可以在页面内部拆分 hero、工作流、日报、热点推荐、辅助能力和 CTA 等局部组件。
 
-The landing page should not open the import modal directly. `立即使用` navigates to `/app`.
+落地页不直接打开导入弹窗。`立即使用` 只负责跳转到 `/app`。
 
-## Error Handling and Edge Cases
+## 错误处理和边界情况
 
-- Unknown routes should redirect to `/` or an appropriate app route without trapping users.
-- Legacy app routes should be considered during implementation. If old app URLs remain exposed, redirect them to the new `/app/*` routes.
-- Landing navigation section anchors should still work if JavaScript routing is active.
-- Mobile navigation can be simple for the first version, but primary CTA must remain easy to access.
+- 未匹配路由应重定向到 `/` 或合适的应用路由，不能让用户卡在空白页。
+- 实现阶段需要考虑旧应用地址。若旧地址仍可能被访问，应重定向到新的 `/app/*` 路由。
+- 落地页导航里的区块锚点在 React 路由环境中仍应可用。
+- 第一版移动端导航可以保持简单，但主行动按钮必须容易点击。
 
-## Testing Plan
+## 测试计划
 
-Implementation should include:
+实现阶段应包含：
 
-- Route tests verifying `/` renders the landing page.
-- Route tests verifying `/app` renders the app Home dashboard inside `AppLayout`.
-- CTA test verifying `立即使用` navigates from `/` to `/app`.
-- Existing app page tests should be updated if route paths change.
-- Build/typecheck verification with the existing project commands.
-- Browser visual check on desktop and mobile widths after implementation.
+- 路由测试：访问 `/` 时渲染落地页。
+- 路由测试：访问 `/app` 时在 `AppLayout` 内渲染应用 Home 数据看板。
+- CTA 测试：在 `/` 点击 `立即使用` 后跳转到 `/app`。
+- 如果应用页面路径发生变化，更新现有页面测试。
+- 使用项目现有命令完成构建和类型检查验证。
+- 实现后用浏览器检查桌面端和移动端视觉效果。
 
-## Out of Scope
+## 不在本次范围内
 
-- Login, pricing, testimonials, newsletter signup, analytics tracking, or account creation.
-- Cloud sync claims.
-- Batch import claims.
-- Saving daily reports as knowledge cards.
-- Turning AI Hot Recommendations into an infinite feed.
-- Pixel-perfect reproduction of the provided reference screenshot.
+- 登录、价格页、用户评价、邮件订阅、数据埋点或账号创建。
+- 云同步承诺。
+- 批量导入承诺。
+- 把日报保存为知识库卡片。
+- 把 AI 热点推荐做成无限信息流。
+- 像素级复刻用户提供的参考截图。
 
-## Acceptance Criteria
+## 验收标准
 
-- Visiting `/` shows the public product introduction page.
-- The hero clearly communicates `别让收藏继续吃灰` and `从一个链接开始，建立你的本地个人知识库`.
-- `立即使用` navigates to `/app`.
-- `/app` shows the existing application Home dashboard.
-- Daily Knowledge Report has its own section.
-- AI Hot Recommendations has its own section.
-- The page visually matches the calm, neutral, knowledge-work style defined in the product design guide.
-- The page avoids large gradients, decorative blobs, and generic marketing visuals.
+- 访问 `/` 时展示公开产品介绍页。
+- 首屏清楚呈现 `别让收藏继续吃灰` 和 `从一个链接开始，建立你的本地个人知识库`。
+- 点击 `立即使用` 后进入 `/app`。
+- `/app` 展示现有应用 Home 数据看板。
+- 每日知识日报拥有独立区块。
+- AI 热点推荐拥有独立区块。
+- 页面视觉符合产品设计规范中安静、中性、知识工作台的气质。
+- 页面避免大面积渐变、装饰光球和泛营销视觉。
