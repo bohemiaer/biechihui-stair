@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List
 
 import requests
 
@@ -59,7 +59,7 @@ class ModelClient:
         prompt = (
             "你是个人知识库的数据转换助手。请基于输入生成一张便于模糊记忆检索的知识卡片，"
             "只输出严格 JSON，不要输出其他文本。\n"
-            f"来源平台：{source}\n标题：{title}\n正文：{text[:6000]}\n图片URL：{image_urls[:10]}\n"
+            f"来源平台：{source}\n标题：{title}\n正文：{text[:6000]}\n"
             '输出格式：{"title":"原始或修正标题","summary":"约300字摘要","tags":["3到5个标签"]}'
         )
         obj = self._chat_json(prompt)
@@ -75,14 +75,58 @@ class ModelClient:
             "tags": [str(t) for t in tags if str(t).strip()][:5] if isinstance(tags, list) else [],
         }
 
-    def answer(self, *, query: str, card: Dict[str, Any]) -> str:
+    def generate_daily_report(self, *, date: str, cards: List[Dict[str, Any]]) -> Dict[str, Any]:
+        compact_cards = []
+        for card in cards[:12]:
+            compact_cards.append(
+                {
+                    "id": card.get("id", ""),
+                    "title": card.get("title", ""),
+                    "source": card.get("source", ""),
+                    "summary": card.get("summary", ""),
+                    "tags": card.get("tags", []),
+                    "content": str(card.get("content", ""))[:1200],
+                }
+            )
+        prompt = (
+            "你是个人知识库的日报归纳助手。请基于当天归档的知识卡片生成一份中文日报摘要，"
+            "只输出严格 JSON，不要输出 Markdown 或解释。\n\n"
+            f"日期：{date}\n"
+            f"当天卡片：{json.dumps(compact_cards, ensure_ascii=False)}\n\n"
+            "输出字段固定为：\n"
+            '{\n'
+            '  "summary": "80到180字，概括当天知识收集重点、关系和可行动洞察",\n'
+            '  "topics": ["2到4条主题观察，每条不超过40字"],\n'
+            '  "keywords": ["3到6个关键词"],\n'
+            '  "highlightCardIds": ["1到3个最值得回看的卡片id，必须来自输入卡片"]\n'
+            "}\n"
+            "如果信息有限，也要基于已有卡片如实概括，不要编造没有出现的来源、数字或结论。"
+        )
+        obj = self._chat_json(prompt)
+        if not isinstance(obj, dict):
+            raise ModelAPIError("chat API returned invalid daily report JSON")
+        summary = str(obj.get("summary") or "").strip()
+        if not summary:
+            raise ModelAPIError("chat API returned no daily report summary")
+        valid_ids = {str(card.get("id")) for card in compact_cards}
+        topics = obj.get("topics")
+        keywords = obj.get("keywords")
+        highlights = obj.get("highlightCardIds")
+        return {
+            "summary": summary[:600],
+            "topics": [str(item).strip() for item in topics if str(item).strip()][:4] if isinstance(topics, list) else [],
+            "keywords": [str(item).strip() for item in keywords if str(item).strip()][:6] if isinstance(keywords, list) else [],
+            "highlightCardIds": [str(item) for item in highlights if str(item) in valid_ids][:3] if isinstance(highlights, list) else [],
+        }
+
+    def _build_answer_prompt(self, *, query: str, card: Dict[str, Any]) -> str:
         context = (
             f"标题：{card.get('title', '')}\n"
             f"来源：{card.get('source', '')}\n"
             f"摘要：{card.get('summary', '')}\n"
             f"原文：\n{str(card.get('raw_text', ''))}"
         )
-        prompt = (
+        return (
             "你是一个服务于 AI 产品经理的知识库问答助手，对用户提出的问题进行回答。\n\n"
             "你的回答必须严格依据提供的参考资料，不得使用参考资料之外的事实。\n\n"
             "## 基本规则\n"
@@ -100,7 +144,7 @@ class ModelClient:
             "## 输出限制\n"
             "1. 回答总长度控制在 200 到 500 字之间。\n"
             "2. 优先使用短段落或短列表，每一条不超过 2 句。\n"
-            "3. 默认最多输出 4 个小节：结论、依据、注意事项、引用。\n"
+            "3. 默认最多输出 3 个小节：结论、依据、注意事项。\n"
             "4. 如果用户明确要求“详细展开”，可以放宽长度限制到 800 字。\n"
             "5. 如果资料不足，回答应控制在 80 到 180 字之间。\n"
             "6. 不要输出超过 5 条的长列表。\n"
@@ -108,55 +152,34 @@ class ModelClient:
             "8. 对“是否应该”“怎么选”“推荐哪个”这类决策问题，必须给出明确倾向；如果证据不足，就明确说无法确定。\n"
             "9. 对“怎么做”类问题，必须给出步骤或执行建议，不能只解释概念。\n"
             "10. 若引用证据不足以支持强结论，应降低语气强度，使用“更适合”“倾向于”“资料显示”等表述。\n\n"
-            "## 引用规则\n"
-            "1. 每个关键结论后必须附引用编号，如 [1]。\n"
-            "2. 引用只能来自参考资料，不得伪造。\n"
-            "3. 若某条建议没有直接证据支持，但可以从资料合理推断，需标注“基于资料推断”，并尽量附最相关引用。\n"
-            "4. 若无法提供有效引用，就不要输出强结论。\n\n"
             "## 固定输出格式\n"
             "请严格按以下 Markdown 格式输出：\n\n"
             "结论：\n"
             "<先给简明结论。若无法回答，直接说明资料不足。>\n\n"
             "依据：\n"
-            "- <依据1> [1]\n"
-            "- <依据2> [1]\n\n"
+            "- <依据1>\n"
+            "- <依据2>\n\n"
             "注意事项：\n"
             "- <风险、边界条件、适用范围；如果没有可写“无”>\n\n"
-            "引用：\n"
-            f"- [1] {card.get('title', '')}\n\n"
-            "## 示例 1\n"
-            "用户问题：这篇主要讲什么？\n"
-            "参考资料：标题：OpenRouter Guardrails 视频教程；摘要：这是一条关于如何给 agent 叠加预算上限、模型黑名单和数据保留策略的视频教程。\n"
-            "正确输出：\n"
-            "结论：\n"
-            "这篇主要讲如何给 agent 增加治理护栏，重点是成本控制、模型限制和数据保留策略。[1]\n\n"
-            "依据：\n"
-            "- 教程核心是 stackable Guardrails。[1]\n"
-            "- 提到了每周预算上限、模型 denylist 和数据保留策略。[1]\n\n"
-            "注意事项：\n"
-            "- 若需具体 API 参数或配置代码，当前资料未展开。[1]\n\n"
-            "引用：\n"
-            "- [1] OpenRouter Guardrails 视频教程\n\n"
-            "## 示例 2\n"
-            "用户问题：这篇有没有讲具体 API 参数？\n"
-            "参考资料：标题：Runway MCP；摘要：文章介绍 Runway 如何把视频和图像生成能力接入 MCP 工作流。\n"
-            "正确输出：\n"
-            "结论：\n"
-            "根据当前知识库内容，这篇没有展开具体 API 参数，只说明了接入场景和能力范围。[1]\n\n"
-            "依据：\n"
-            "- 资料重点是 MCP 接入方式和可调用能力。[1]\n"
-            "- 未出现参数表、请求字段或示例请求。[1]\n\n"
-            "注意事项：\n"
-            "- 如果要确认具体字段定义，需要补充官方接口文档。[1]\n\n"
-            "引用：\n"
-            "- [1] Runway MCP\n\n"
             "现在开始回答。\n\n"
             f"用户问题：{query}\n\n参考资料：\n{context}"
         )
+
+    def answer(self, *, query: str, card: Dict[str, Any]) -> str:
+        prompt = self._build_answer_prompt(query=query, card=card)
         answer = self._chat_text(prompt)
         if not answer.strip():
             raise ModelAPIError("chat API returned empty answer")
         return answer
+
+    def answer_stream(self, *, query: str, card: Dict[str, Any]) -> Iterator[str]:
+        prompt = self._build_answer_prompt(query=query, card=card)
+        yielded = False
+        for token in self._chat_text_stream(prompt):
+            yielded = True
+            yield token
+        if not yielded:
+            raise ModelAPIError("chat API returned empty answer")
 
     def embed(self, text: str) -> List[float]:
         if not self.settings.embedding_api_key:
@@ -216,7 +239,42 @@ class ModelClient:
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
         }
-        response = requests.post(url, headers=self._headers(self.settings.chat_api_key), json=payload, timeout=60)
+        try:
+            response = requests.post(url, headers=self._headers(self.settings.chat_api_key), json=payload, timeout=60)
+        except requests.RequestException as exc:
+            raise ModelAPIError(f"chat API request failed: {exc}") from exc
         self._raise_for_status(response, "chat API")
         obj = response.json()
         return str(obj.get("choices", [{}])[0].get("message", {}).get("content", ""))
+
+    def _chat_text_stream(self, prompt: str) -> Iterator[str]:
+        if not self.settings.chat_api_key:
+            raise ModelAPIError("CHAT_API_KEY, DEEPSEEK_API_KEY, or SILICONFLOW_API_KEY is required for chat")
+        url = f"{self.settings.chat_base_url}/chat/completions"
+        payload = {
+            "model": self.settings.chat_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+            "stream": True,
+        }
+        try:
+            with requests.post(url, headers=self._headers(self.settings.chat_api_key), json=payload, timeout=90, stream=True) as response:
+                self._raise_for_status(response, "chat API")
+                for raw_line in response.iter_lines(decode_unicode=True):
+                    if not raw_line:
+                        continue
+                    line = raw_line.strip()
+                    if line.startswith("data:"):
+                        line = line[5:].strip()
+                    if line == "[DONE]":
+                        break
+                    try:
+                        obj = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    delta = obj.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content")
+                    if content:
+                        yield str(content)
+        except requests.RequestException as exc:
+            raise ModelAPIError(f"chat API stream failed: {exc}") from exc

@@ -1,0 +1,6 @@
+{
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "externalBin": ["../backend/dist/desktop-backend"]
+  }
+}

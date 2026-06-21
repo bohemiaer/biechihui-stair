@@ -1,0 +1,15 @@
+[package]
+name = "biechihui-desktop"
+version = "0.1.0"
+description = "Biechihui desktop wrapper"
+edition = "2021"
+
+[lib]
+name = "biechihui_desktop_lib"
+crate-type = ["cdylib", "rlib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

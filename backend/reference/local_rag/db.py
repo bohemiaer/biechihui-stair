@@ -45,6 +45,7 @@ class KnowledgeDB:
                     author TEXT,
                     published_at TEXT,
                     raw_text TEXT NOT NULL,
+                    raw_markdown TEXT NOT NULL DEFAULT '',
                     images_json TEXT NOT NULL DEFAULT '[]',
                     metadata_json TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
@@ -70,6 +71,11 @@ class KnowledgeDB:
                 USING fts5(card_id UNINDEXED, user_id UNINDEXED, title, summary, tags, searchable_text);
                 """
             )
+            item_columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(knowledge_item)").fetchall()
+            }
+            if "raw_markdown" not in item_columns:
+                conn.execute("ALTER TABLE knowledge_item ADD COLUMN raw_markdown TEXT NOT NULL DEFAULT ''")
 
     def find_item_by_url(self, user_id: str, canonical_url: str) -> Optional[Dict[str, Any]]:
         with self.connect() as conn:
@@ -95,14 +101,25 @@ class KnowledgeDB:
 
     def get_card_by_item(self, item_id: str) -> Optional[Dict[str, Any]]:
         with self.connect() as conn:
-            row = conn.execute("SELECT * FROM knowledge_card WHERE item_id = ?", (item_id,)).fetchone()
+            row = conn.execute(
+                """
+                SELECT c.*, i.original_url, i.raw_text, i.raw_markdown, i.metadata_json,
+                       i.images_json, i.author, i.published_at,
+                       i.created_at AS item_created_at, i.updated_at AS item_updated_at
+                FROM knowledge_card c
+                JOIN knowledge_item i ON i.id = c.item_id
+                WHERE c.item_id = ?
+                """,
+                (item_id,),
+            ).fetchone()
             return self._row_to_card(row) if row else None
 
     def get_card(self, user_id: str, card_id: str) -> Optional[Dict[str, Any]]:
         with self.connect() as conn:
             row = conn.execute(
                 """
-                SELECT c.*, i.original_url, i.raw_text, i.metadata_json
+                SELECT c.*, i.original_url, i.raw_text, i.raw_markdown, i.metadata_json
+                       , i.images_json
                 FROM knowledge_card c
                 JOIN knowledge_item i ON i.id = c.item_id
                 WHERE c.user_id = ? AND c.id = ?
@@ -115,7 +132,8 @@ class KnowledgeDB:
         with self.connect() as conn:
             row = conn.execute(
                 """
-                SELECT c.*, i.original_url, i.raw_text, i.metadata_json
+                SELECT c.*, i.original_url, i.raw_text, i.raw_markdown, i.metadata_json
+                       , i.images_json
                 FROM knowledge_card c
                 JOIN knowledge_item i ON i.id = c.item_id
                 WHERE c.id = ?
@@ -141,6 +159,8 @@ class KnowledgeDB:
         tags: List[str],
         searchable_text: str,
         embedding: List[float],
+        raw_markdown: str = "",
+        recreate_existing: bool = False,
     ) -> Dict[str, Any]:
         ts = now_iso()
         with self.connect() as conn:
@@ -148,13 +168,21 @@ class KnowledgeDB:
                 "SELECT id FROM knowledge_item WHERE user_id = ? AND canonical_url = ?",
                 (user_id, canonical_url),
             ).fetchone()
+            if existing and recreate_existing:
+                item_id = existing["id"]
+                card = conn.execute("SELECT id FROM knowledge_card WHERE item_id = ?", (item_id,)).fetchone()
+                if card:
+                    conn.execute("DELETE FROM knowledge_card_fts WHERE card_id = ?", (card["id"],))
+                conn.execute("DELETE FROM knowledge_item WHERE id = ?", (item_id,))
+                existing = None
+
             if existing:
                 item_id = existing["id"]
                 conn.execute(
                     """
                     UPDATE knowledge_item
                     SET original_url = ?, source = ?, title = ?, author = ?, published_at = ?,
-                        raw_text = ?, images_json = ?, metadata_json = ?, updated_at = ?
+                        raw_text = ?, raw_markdown = ?, images_json = ?, metadata_json = ?, updated_at = ?
                     WHERE id = ?
                     """,
                     (
@@ -164,6 +192,7 @@ class KnowledgeDB:
                         author,
                         published_at,
                         raw_text,
+                        raw_markdown,
                         json.dumps(images, ensure_ascii=False),
                         json.dumps(item_metadata, ensure_ascii=False),
                         ts,
@@ -179,8 +208,8 @@ class KnowledgeDB:
                     """
                     INSERT INTO knowledge_item
                     (id, user_id, original_url, canonical_url, source, title, author, published_at,
-                     raw_text, images_json, metadata_json, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     raw_text, raw_markdown, images_json, metadata_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         item_id,
@@ -192,6 +221,7 @@ class KnowledgeDB:
                         author,
                         published_at,
                         raw_text,
+                        raw_markdown,
                         json.dumps(images, ensure_ascii=False),
                         json.dumps(item_metadata, ensure_ascii=False),
                         ts,
@@ -239,7 +269,8 @@ class KnowledgeDB:
             )
             row = conn.execute(
                 """
-                SELECT c.*, i.original_url, i.raw_text, i.metadata_json
+                SELECT c.*, i.original_url, i.raw_text, i.raw_markdown, i.metadata_json
+                       , i.images_json
                 FROM knowledge_card c JOIN knowledge_item i ON i.id = c.item_id
                 WHERE c.id = ?
                 """,
@@ -251,7 +282,8 @@ class KnowledgeDB:
         with self.connect() as conn:
             rows = conn.execute(
                 """
-                SELECT c.*, i.original_url, i.raw_text, i.metadata_json
+                SELECT c.*, i.original_url, i.raw_text, i.raw_markdown, i.metadata_json
+                       , i.images_json
                 FROM knowledge_card c JOIN knowledge_item i ON i.id = c.item_id
                 WHERE c.user_id = ?
                 """,
@@ -263,7 +295,8 @@ class KnowledgeDB:
         with self.connect() as conn:
             rows = conn.execute(
                 """
-                SELECT c.*, i.original_url, i.raw_text, i.metadata_json
+                SELECT c.*, i.original_url, i.raw_text, i.raw_markdown, i.metadata_json
+                       , i.images_json
                 FROM knowledge_card c JOIN knowledge_item i ON i.id = c.item_id
                 """
             ).fetchall()
@@ -279,7 +312,8 @@ class KnowledgeDB:
             params.append(limit)
             rows = conn.execute(
                 f"""
-                SELECT c.*, i.original_url, i.raw_text, i.metadata_json,
+                SELECT c.*, i.original_url, i.raw_text, i.raw_markdown, i.metadata_json,
+                       i.images_json,
                        i.author, i.published_at, i.created_at AS item_created_at,
                        i.updated_at AS item_updated_at
                 FROM knowledge_card c JOIN knowledge_item i ON i.id = c.item_id
@@ -347,4 +381,8 @@ class KnowledgeDB:
             data["metadata"] = json.loads(data.pop("metadata_json") or "{}")
         else:
             data["metadata"] = {}
+        if "images_json" in data:
+            data["images"] = json.loads(data.pop("images_json") or "[]")
+        else:
+            data["images"] = []
         return data

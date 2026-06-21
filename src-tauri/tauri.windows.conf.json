@@ -1,0 +1,6 @@
+{
+  "bundle": {
+    "targets": ["nsis"],
+    "externalBin": ["../backend/dist/desktop-backend"]
+  }
+}

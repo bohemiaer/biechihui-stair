@@ -5,7 +5,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse, urlunparse
 
 import requests
@@ -30,6 +30,8 @@ class ExtractedContent:
     source: str
     title: str
     text: str
+    raw_markdown: str = ""
+    raw_markdown_path: str = ""
     author: str = ""
     published_at: str = ""
     image_urls: List[str] = field(default_factory=list)
@@ -143,16 +145,21 @@ def _extract_x_with_browser(
 
         article = page.locator("article").first
         tweet_text = article.locator("[data-testid='tweetText']")
-        title = tweet_text.first.inner_text(timeout=5000) if tweet_text.count() else ""
-        text_blocks = tweet_text.all_inner_texts()
-        text = "\n".join(part.strip() for part in text_blocks if part.strip())
-        if not text.strip():
-            longform_title = article.locator("[data-testid='twitter-article-title']")
-            rich_text = article.locator("[data-testid='twitterArticleRichTextView'], [data-testid='longformRichTextComponent']")
-            if longform_title.count():
-                title = longform_title.first.inner_text(timeout=5000)
-            if rich_text.count():
-                text = _compose_x_longform_text(title=title, body_blocks=rich_text.all_inner_texts())
+        tweet_blocks = tweet_text.all_inner_texts()
+        longform_title, longform_blocks = _read_x_longform_snapshot(article)
+        if _has_x_longform_signal(longform_title, longform_blocks):
+            retried_title, retried_blocks = _retry_read_x_longform_snapshot(article, timeout_ms=timeout * 1000)
+            longform_title, longform_blocks = _pick_richer_x_longform_snapshot(
+                initial_title=longform_title,
+                initial_blocks=longform_blocks,
+                retried_title=retried_title,
+                retried_blocks=retried_blocks,
+            )
+        title, text, x_mode = _select_x_text_content(
+            tweet_blocks=tweet_blocks,
+            longform_title=longform_title,
+            longform_blocks=longform_blocks,
+        )
         author = ""
         user_name = article.locator("[data-testid='User-Name']").first
         if user_name.count():
@@ -173,7 +180,7 @@ def _extract_x_with_browser(
         text=text.strip(),
         author=author,
         image_urls=image_urls[:20],
-        metadata={"extractor": "x_browser"},
+        metadata={"extractor": "x_browser", "x_mode": x_mode},
     )
 
 
@@ -187,6 +194,96 @@ def _compose_x_longform_text(*, title: str, body_blocks: List[str]) -> str:
         if cleaned and cleaned not in parts:
             parts.append(cleaned)
     return "\n\n".join(parts).strip()
+
+
+def _normalize_x_text_blocks(blocks: List[str]) -> List[str]:
+    normalized: List[str] = []
+    for block in blocks:
+        cleaned = str(block).strip()
+        if cleaned and cleaned not in normalized:
+            normalized.append(cleaned)
+    return normalized
+
+
+def _read_x_longform_snapshot(article: Any) -> Tuple[str, List[str]]:
+    longform_title_locator = article.locator("[data-testid='twitter-article-title']")
+    rich_text = article.locator("[data-testid='twitterArticleRichTextView'], [data-testid='longformRichTextComponent']")
+    longform_title = longform_title_locator.first.inner_text(timeout=5000) if longform_title_locator.count() else ""
+    longform_blocks = rich_text.all_inner_texts() if rich_text.count() else []
+    return str(longform_title).strip(), _normalize_x_text_blocks(longform_blocks)
+
+
+def _has_x_longform_signal(longform_title: str, longform_blocks: List[str]) -> bool:
+    return bool(str(longform_title).strip() or _normalize_x_text_blocks(longform_blocks))
+
+
+def _score_x_longform_snapshot(title: str, blocks: List[str]) -> Tuple[int, int, int]:
+    normalized_blocks = _normalize_x_text_blocks(blocks)
+    total_chars = sum(len(block) for block in normalized_blocks)
+    return (1 if str(title).strip() else 0, len(normalized_blocks), total_chars)
+
+
+def _pick_richer_x_longform_snapshot(
+    *,
+    initial_title: str,
+    initial_blocks: List[str],
+    retried_title: str,
+    retried_blocks: List[str],
+) -> Tuple[str, List[str]]:
+    initial_normalized = _normalize_x_text_blocks(initial_blocks)
+    retried_normalized = _normalize_x_text_blocks(retried_blocks)
+    if _score_x_longform_snapshot(retried_title, retried_normalized) > _score_x_longform_snapshot(initial_title, initial_normalized):
+        return str(retried_title).strip(), retried_normalized
+    return str(initial_title).strip(), initial_normalized
+
+
+def _retry_read_x_longform_snapshot(article: Any, *, timeout_ms: int) -> Tuple[str, List[str]]:
+    deadline_attempts = max(2, min(5, timeout_ms // 1000))
+    best_title, best_blocks = _read_x_longform_snapshot(article)
+    stable_reads = 0
+    previous_score = _score_x_longform_snapshot(best_title, best_blocks)
+
+    rich_text = article.locator("[data-testid='twitterArticleRichTextView'], [data-testid='longformRichTextComponent']")
+    if rich_text.count():
+        try:
+            rich_text.first.scroll_into_view_if_needed(timeout=5000)
+        except Exception:
+            pass
+
+    for _ in range(deadline_attempts):
+        article.page.wait_for_timeout(800)
+        current_title, current_blocks = _read_x_longform_snapshot(article)
+        best_title, best_blocks = _pick_richer_x_longform_snapshot(
+            initial_title=best_title,
+            initial_blocks=best_blocks,
+            retried_title=current_title,
+            retried_blocks=current_blocks,
+        )
+        current_score = _score_x_longform_snapshot(current_title, current_blocks)
+        if current_score == previous_score:
+            stable_reads += 1
+            if stable_reads >= 2:
+                break
+        else:
+            stable_reads = 0
+            previous_score = current_score
+
+    return best_title, best_blocks
+
+
+def _select_x_text_content(*, tweet_blocks: List[str], longform_title: str, longform_blocks: List[str]) -> tuple[str, str, str]:
+    normalized_longform_blocks = _normalize_x_text_blocks(longform_blocks)
+    cleaned_longform_title = str(longform_title).strip()
+    if cleaned_longform_title or normalized_longform_blocks:
+        return (
+            cleaned_longform_title,
+            _compose_x_longform_text(title=cleaned_longform_title, body_blocks=normalized_longform_blocks),
+            "longform",
+        )
+
+    normalized_tweet_blocks = _normalize_x_text_blocks(tweet_blocks)
+    tweet_title = normalized_tweet_blocks[0] if normalized_tweet_blocks else ""
+    return tweet_title, "\n".join(normalized_tweet_blocks).strip(), "tweet"
 
 
 def _extract_wechat(original: str, canonical: str, html_text: str) -> ExtractedContent:
@@ -355,11 +452,34 @@ def _clean(text: str) -> str:
 
 
 def _html_to_text(raw: str) -> str:
+    raw = re.sub(r"<!--.*?-->", " ", raw, flags=re.S)
     raw = re.sub(r"<br\s*/?>", "\n", raw, flags=re.I)
-    raw = re.sub(r"</p\s*>", "\n", raw, flags=re.I)
-    raw = re.sub(r"<[^>]+>", " ", raw)
+    raw = re.sub(r"<li\b[^>]*>", "\n- ", raw, flags=re.I)
+    raw = re.sub(r"</li\s*>", "\n", raw, flags=re.I)
+    raw = re.sub(
+        r"</?(?:article|aside|blockquote|div|figcaption|figure|footer|h[1-6]|header|main|nav|ol|p|pre|section|table|tbody|td|th|thead|tr|ul)\b[^>]*>",
+        "\n\n",
+        raw,
+        flags=re.I,
+    )
+    raw = re.sub(r"<[^>]+>", "", raw)
     raw = html.unescape(raw)
-    return re.sub(r"\s+", " ", raw).strip()
+    raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+
+    normalized_lines: List[str] = []
+    last_blank = False
+    for line in raw.split("\n"):
+        cleaned = re.sub(r"[^\S\n]+", " ", line).strip()
+        if not cleaned:
+            if not last_blank and normalized_lines:
+                normalized_lines.append("")
+            last_blank = True
+            continue
+        normalized_lines.append(cleaned)
+        last_blank = False
+
+    text = "\n".join(normalized_lines).strip()
+    return re.sub(r"(?m)(^- .+)\n\n(?=- )", r"\1\n", text)
 
 
 def _extract_images(raw: str) -> List[str]:

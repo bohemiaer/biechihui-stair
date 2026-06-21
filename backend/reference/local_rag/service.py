@@ -4,7 +4,8 @@ from typing import Any, Dict, Optional
 
 from .config import Settings, get_settings
 from .db import KnowledgeDB
-from .extractors import canonicalize_url, extract_url, validate_extracted_content
+from .extractors import canonicalize_url, validate_extracted_content
+from .feedgrab_adapter import extract_url_with_feedgrab
 from .llm import ModelClient
 from .models import AnswerResponse, CardListResponse, IngestResponse, KnowledgeCard, SearchResponse
 from .retrieval import Retriever
@@ -23,22 +24,22 @@ class KnowledgeService:
         self.vector_index = OptionalLanceIndex(self.settings.lancedb_dir, self.settings.use_lancedb)
         self.retriever = Retriever(self.db, self.models, self.vector_index)
 
-    def ingest(self, *, url: str, force_refresh: bool = False) -> IngestResponse:
+    def ingest(self, *, url: str, force_refresh: bool = False, recreate_on_duplicate: bool = False) -> IngestResponse:
         canonical_url = canonicalize_url(url)
         existing = self.db.find_item_by_url_any_user(canonical_url)
-        if existing and not force_refresh:
+        if existing and not force_refresh and not recreate_on_duplicate:
             card = self.db.get_card_by_item(existing["id"])
             if card:
                 self._validate_existing_item(existing)
-                return IngestResponse(item_id=existing["id"], card=self._to_card(card), duplicate=True)
+                return IngestResponse(item_id=existing["id"], card=self._to_card(card, include_raw=True), duplicate=True)
 
-        extracted = extract_url(url)
+        extracted = extract_url_with_feedgrab(url, output_root=self.settings.data_dir / "feedgrab_raw")
 
         card_payload = self.models.summarize_card(
             title=extracted.title,
             source=extracted.source,
             text=extracted.text,
-            image_urls=extracted.image_urls,
+            image_urls=[],
         )
         title = card_payload["title"]
         summary = card_payload["summary"]
@@ -54,15 +55,17 @@ class KnowledgeService:
             author=extracted.author,
             published_at=extracted.published_at,
             raw_text=extracted.text,
+            raw_markdown=extracted.raw_markdown or extracted.text,
             images=extracted.image_urls,
             item_metadata=extracted.metadata,
             summary=summary,
             tags=tags,
             searchable_text=searchable_text,
             embedding=embedding,
+            recreate_existing=recreate_on_duplicate,
         )
         self.vector_index.upsert(saved)
-        return IngestResponse(item_id=saved["item_id"], card=self._to_card(saved), duplicate=bool(existing))
+        return IngestResponse(item_id=saved["item_id"], card=self._to_card(saved, include_raw=True), duplicate=bool(existing))
 
     def _validate_existing_item(self, row: Dict[str, Any]) -> None:
         validate_extracted_content(
@@ -107,10 +110,14 @@ class KnowledgeService:
             metadata["raw_text_preview"] = str(row["raw_text"])[:240]
             if include_raw:
                 metadata["raw_text"] = str(row["raw_text"])
+        if row.get("raw_markdown"):
+            metadata["raw_markdown"] = str(row["raw_markdown"])
         if row.get("author"):
             metadata["author"] = row["author"]
         if row.get("published_at"):
             metadata["published_at"] = row["published_at"]
+        if row.get("images"):
+            metadata["image_urls"] = list(row["images"])
         if row.get("item_created_at"):
             metadata["created_at"] = row["item_created_at"]
         if row.get("item_updated_at"):

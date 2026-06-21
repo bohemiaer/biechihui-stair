@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+.pytest_cache/
 .env
 .env.local
 .env.*.local
@@ -10,3 +11,17 @@ Thumbs.db
 .vite/
 .turbo/
 coverage/
+%TEMP%/
+__pycache__/
+*.pyc
+backend/data/
+local_rag_data/
+local_rag_data copy/
+sessions/
+.feedgrab-data/
+.feedgrab-output/
+.venv-feedgrab/
+.superpowers/
+.trae/
+src-tauri/target/
+social-card-biechihui-intro
