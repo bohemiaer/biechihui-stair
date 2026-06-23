@@ -25,3 +25,4 @@ sessions/
 .trae/
 src-tauri/target/
 social-card-biechihui-intro
+/*.exe

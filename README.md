@@ -30,11 +30,11 @@
 
 ## 桌面安装包
 
-当前仓库根目录已经放置 Windows 安装包，普通用户可以直接下载安装。
+Windows 安装包通过 GitHub Release 分发，普通用户可以直接下载最新版本安装。
 
-最新安装包：
+最新安装包下载：
 
-- `别吃灰_0.1.0_x64-setup.exe`
+- [GitHub Releases](https://github.com/bohemiaer/biechihui-stair/releases)
 
 安装后：
 
@@ -47,7 +47,7 @@
 
 ## 最快体验方式
 
-如果你是普通使用者，最推荐的方式是直接运行仓库根目录的 Windows 安装包，而不是自己启动前后端开发环境。
+如果你是普通使用者，最推荐的方式是从 GitHub Release 下载 Windows 安装包，而不是自己启动前后端开发环境。
 
 更完整的安装版说明见：
 
@@ -124,7 +124,7 @@
 
 ### 我应该怎么最快体验这个项目？
 
-直接运行根目录的 `别吃灰_0.1.0_x64-setup.exe`，安装后打开应用，再去设置页填写 `SILICONFLOW_API_KEY`。
+从 [GitHub Releases](https://github.com/bohemiaer/biechihui-stair/releases) 下载最新 Windows 安装包，安装后打开应用，再去设置页填写 `SILICONFLOW_API_KEY`。
 
 ### 为什么只强调 `SILICONFLOW_API_KEY`？
 
