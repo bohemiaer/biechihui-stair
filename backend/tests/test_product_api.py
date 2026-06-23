@@ -2,8 +2,10 @@ from pathlib import Path
 from time import perf_counter, sleep
 import json
 import os
+import subprocess
 
 from fastapi.testclient import TestClient
+import pytest
 from pytest import fixture
 
 from backend.app.main import app
@@ -355,6 +357,62 @@ def test_feedgrab_login_uses_packaged_backend_executable(monkeypatch):
         r"C:\Program Files\Biechihui\desktop-backend.exe",
         "--feedgrab",
     ]
+
+
+def test_feedgrab_login_returns_when_child_keeps_running(monkeypatch, tmp_path):
+    from backend.app import feedgrab_login
+
+    class RunningProcess:
+        pid = 12345
+
+        def wait(self, timeout=None):
+            raise subprocess.TimeoutExpired("feedgrab", timeout)
+
+    def fake_popen(*args, **kwargs):
+        kwargs["stdout"].write(b"Opening browser...\n")
+        kwargs["stdout"].flush()
+        return RunningProcess()
+
+    session_dir = tmp_path / "sessions"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FEEDGRAB_DATA_DIR", str(session_dir))
+    monkeypatch.setenv("FEEDGRAB_COMMAND", "feedgrab")
+    monkeypatch.setenv("FEEDGRAB_LOGIN_STARTUP_TIMEOUT", "0.1")
+    monkeypatch.setattr(feedgrab_login.subprocess, "Popen", fake_popen)
+
+    result = feedgrab_login.start_feedgrab_login("x")
+
+    assert result["pid"] == 12345
+    assert result["platform"] == "twitter"
+    assert Path(result["logPath"]).exists()
+
+
+def test_feedgrab_login_reports_fast_exit_without_session(monkeypatch, tmp_path):
+    from backend.app import feedgrab_login
+
+    class ExitedProcess:
+        pid = 12345
+
+        def wait(self, timeout=None):
+            return 0
+
+    def fake_popen(*args, **kwargs):
+        kwargs["stdout"].write(b"Playwright is not installed.\n")
+        kwargs["stdout"].flush()
+        return ExitedProcess()
+
+    session_dir = tmp_path / "sessions"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FEEDGRAB_DATA_DIR", str(session_dir))
+    monkeypatch.setenv("FEEDGRAB_COMMAND", "feedgrab")
+    monkeypatch.setenv("FEEDGRAB_LOGIN_STARTUP_TIMEOUT", "0.1")
+    monkeypatch.setattr(feedgrab_login.subprocess, "Popen", fake_popen)
+
+    with pytest.raises(RuntimeError) as exc:
+        feedgrab_login.start_feedgrab_login("xhs")
+
+    assert "立即退出" in str(exc.value)
+    assert "Playwright is not installed" in str(exc.value)
 
 
 def test_markdown_to_text_without_images_removes_image_noise():

@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 const BACKEND_HOST: &str = "127.0.0.1";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(20);
@@ -76,8 +76,21 @@ pub fn run() {
     .build(tauri::generate_context!())
     .expect("error while building tauri application")
     .run(|app_handle, event| {
-      if let tauri::RunEvent::Exit = event {
-        cleanup_backend(app_handle);
+      match event {
+        tauri::RunEvent::WindowEvent {
+          label,
+          event: WindowEvent::CloseRequested { api, .. },
+          ..
+        } if label == "main" => {
+          api.prevent_close();
+          log_startup("main window close requested; exiting application");
+          cleanup_backend(app_handle);
+          app_handle.exit(0);
+        }
+        tauri::RunEvent::Exit => {
+          cleanup_backend(app_handle);
+        }
+        _ => {}
       }
     });
 }

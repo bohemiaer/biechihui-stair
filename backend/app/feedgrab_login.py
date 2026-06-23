@@ -5,6 +5,7 @@ import json
 import shlex
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -27,22 +28,51 @@ def start_feedgrab_login(platform: str) -> dict[str, int | str]:
         raise ValueError("不支持的平台，请选择 X、小红书或微信。")
 
     command = _feedgrab_command()
+    session_dir = _session_dir()
+    session_dir.mkdir(parents=True, exist_ok=True)
+    session_path = session_dir / f"{feedgrab_platform}.json"
+    session_mtime = session_path.stat().st_mtime if session_path.exists() else None
+    log_path = _login_log_path(session_dir, feedgrab_platform)
+    started_at = time.time()
     env = os.environ.copy()
-    env.setdefault("FEEDGRAB_DATA_DIR", str(_session_dir()))
+    env.setdefault("FEEDGRAB_DATA_DIR", str(session_dir))
+    log_handle = log_path.open("ab")
+    log_handle.write(
+        (
+            f"\n[{datetime.now(timezone.utc).isoformat()}] "
+            f"Starting feedgrab login: {' '.join([*command, 'login', feedgrab_platform])}\n"
+        ).encode("utf-8", errors="replace")
+    )
+    log_handle.flush()
     try:
         process = subprocess.Popen(
             [*command, "login", feedgrab_platform],
             cwd=Path.cwd(),
             env=env,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
             creationflags=_creation_flags(),
         )
     except FileNotFoundError as exc:
+        log_handle.close()
         raise RuntimeError("feedgrab CLI 未找到，请设置 FEEDGRAB_COMMAND 或安装 feedgrab。") from exc
+    except OSError as exc:
+        log_handle.close()
+        raise RuntimeError(f"feedgrab 登录进程启动失败：{exc}") from exc
 
-    return {"platform": feedgrab_platform, "pid": int(process.pid)}
+    try:
+        _ensure_login_process_started(
+            process=process,
+            session_path=session_path,
+            previous_session_mtime=session_mtime,
+            log_path=log_path,
+            started_at=started_at,
+        )
+    finally:
+        log_handle.close()
+
+    return {"platform": feedgrab_platform, "pid": int(process.pid), "logPath": str(log_path)}
 
 
 def get_feedgrab_login_statuses() -> dict[str, Any]:
@@ -97,6 +127,61 @@ def _session_dir() -> Path:
         return Path(app_data_dir) / "sessions"
 
     return Path.cwd() / "sessions"
+
+
+def _login_log_path(session_dir: Path, platform: str) -> Path:
+    return session_dir / f"feedgrab-login-{platform}.log"
+
+
+def _startup_timeout_seconds() -> float:
+    raw = os.getenv("FEEDGRAB_LOGIN_STARTUP_TIMEOUT", "2").strip()
+    try:
+        return max(0.1, float(raw))
+    except ValueError:
+        return 2.0
+
+
+def _ensure_login_process_started(
+    *,
+    process: subprocess.Popen,
+    session_path: Path,
+    previous_session_mtime: Optional[float],
+    log_path: Path,
+    started_at: float,
+) -> None:
+    try:
+        return_code = process.wait(timeout=_startup_timeout_seconds())
+    except subprocess.TimeoutExpired:
+        return
+
+    if return_code == 0 and _session_was_updated(session_path, previous_session_mtime, started_at):
+        return
+
+    detail = _read_log_tail(log_path)
+    message = (
+        "feedgrab 登录进程启动后立即退出，浏览器窗口没有打开。"
+        f"日志：{log_path}"
+    )
+    if detail:
+        message += f"\n{detail}"
+    raise RuntimeError(message)
+
+
+def _session_was_updated(session_path: Path, previous_mtime: Optional[float], started_at: float) -> bool:
+    if not session_path.exists():
+        return False
+    current_mtime = session_path.stat().st_mtime
+    if previous_mtime is None:
+        return current_mtime >= started_at - 1
+    return current_mtime > previous_mtime
+
+
+def _read_log_tail(log_path: Path, max_chars: int = 1200) -> str:
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return ""
+    return text[-max_chars:].strip()
 
 
 def _platform_status(
