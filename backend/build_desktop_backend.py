@@ -100,7 +100,7 @@ def _assert_feedgrab_available(python_executable: Path, cwd: Path) -> None:
         detail = (result.stderr or result.stdout or "").strip()
         raise RuntimeError(
             "feedgrab is required for desktop packaging. "
-            "Install it into .venv-feedgrab or set up the build Python environment first. "
+            "It should be installed automatically from vendor/feedgrab by backend/requirements.txt. "
             f"Details: {detail}"
         )
 

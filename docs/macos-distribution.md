@@ -41,6 +41,9 @@ npm run desktop:dist-macos:x64
 
 并确保 `python -m pip install pyinstaller` 可以正常执行。
 
+`feedgrab` 已经随仓库放在 `vendor/feedgrab`，打包脚本会通过
+`backend/requirements.txt` 自动安装，不需要在 macOS 上额外手动准备。
+
 ## 输出位置
 
 默认输出目录在：

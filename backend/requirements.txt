@@ -5,3 +5,4 @@ requests>=2.31
 playwright>=1.45
 pytest>=8.4
 pyinstaller>=6.0
+./vendor/feedgrab[browser,stealth,twitter,wechat,xhs]
