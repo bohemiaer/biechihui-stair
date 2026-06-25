@@ -260,6 +260,7 @@ class ModelClient:
         try:
             with requests.post(url, headers=self._headers(self.settings.chat_api_key), json=payload, timeout=90, stream=True) as response:
                 self._raise_for_status(response, "chat API")
+                response.encoding = "utf-8"
                 for raw_line in response.iter_lines(decode_unicode=True):
                     if not raw_line:
                         continue

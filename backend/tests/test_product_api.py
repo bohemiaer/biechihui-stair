@@ -447,6 +447,43 @@ def test_summarize_card_prompt_does_not_send_image_urls(monkeypatch):
     assert "图片URL" not in captured["prompt"]
 
 
+def test_chat_text_stream_decodes_utf8_sse_without_charset(monkeypatch):
+    client = ModelClient.__new__(ModelClient)
+    client.settings = type(
+        "Settings",
+        (),
+        {
+            "chat_api_key": "test-key",
+            "chat_base_url": "https://example.com/v1",
+            "chat_model": "test-model",
+        },
+    )()
+
+    class FakeStreamResponse:
+        encoding = "ISO-8859-1"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def raise_for_status(self):
+            return None
+
+        def iter_lines(self, decode_unicode=False):
+            line = 'data: {"choices":[{"delta":{"content":"流式回答"}}]}'.encode("utf-8")
+            if decode_unicode:
+                yield line.decode(self.encoding)
+            else:
+                yield line
+            yield b"data: [DONE]".decode(self.encoding) if decode_unicode else b"data: [DONE]"
+
+    monkeypatch.setattr("backend.reference.local_rag.llm.requests.post", lambda *args, **kwargs: FakeStreamResponse())
+
+    assert "".join(client._chat_text_stream("问题")) == "流式回答"
+
+
 def test_rag_card_mapping_deduplicates_tag_ids():
     rag_card = RagKnowledgeCard(
         card_id="rag-card",
